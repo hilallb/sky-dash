@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Sky Dash — Sonsuz Koşu</title>
+<style>
+  :root{
+    --bg1:#0f1020; --bg2:#1a1c3a; --fg:#e9e9ff;
+    --accent:#6ee7ff; --accent2:#ff9f40; --good:#a7ff83; --bad:#ff5a76;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0; background:linear-gradient(180deg,var(--bg1),var(--bg2));
+    color:var(--fg); font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+    display:grid; place-items:center;
+  }
+  #wrap{width:min(1000px,100vw); padding:10px}
+  .row{display:flex; align-items:center; justify-content:space-between}
+  h1{margin:8px 0 6px; letter-spacing:.5px; font-size:clamp(18px, 3.5vw, 28px)}
+  .meta{opacity:.85; font-size:14px}
+  .hud{display:flex; gap:10px; flex-wrap:wrap; align-items:center}
+  .chip{padding:6px 10px; border:1px solid #2f3158; border-radius:999px; background:#16173a; font-weight:600}
+  .btn{
+    border:none; background:#2a2d63; color:var(--fg); padding:8px 12px; border-radius:10px;
+    font-weight:700; cursor:pointer; transition:.2s;
+  }
+  .btn:hover{filter:brightness(1.15)}
+  canvas{width:100%; height:auto; border:1px solid #2f3158; border-radius:12px; background:linear-gradient(180deg,#14173a 0%, #101232 60%, #0b0d24 100%)}
+  /* Overlays */
+  .overlay{
+    position:fixed; inset:0; display:grid; place-items:center; background:rgba(10,12,30,.7); backdrop-filter: blur(6px);
+  }
+  .panel{
+    width:min(520px, 92vw); background:#14173a; border:1px solid #2f3158; border-radius:16px; padding:16px;
+    box-shadow: 0 12px 36px rgba(0,0,0,.35);
+  }
+  .panel h2{margin:0 0 10px}
+  .grid{display:grid; grid-template-columns:repeat(3,1fr); gap:10px}
+  .card{
+    border:1px solid #2f3158; border-radius:12px; padding:10px; background:#0f1233; cursor:pointer; user-select:none;
+    display:grid; place-items:center; gap:8px; transition:.2s;
+  }
+  .card:hover{filter:brightness(1.2)}
+  .card.selected{outline:3px solid var(--accent); box-shadow:0 0 0 3px rgba(110,231,255,.2) inset}
+  .hint{opacity:.85; font-size:14px; line-height:1.5}
+  .kbd{border:1px solid #2f3158; padding:2px 6px; border-radius:6px; background:#12143a; font-weight:700}
+  .center{display:flex; justify-content:center; gap:10px; margin-top:12px}
+  .danger{background: #5a1733}
+  .ok{background:#1a3c2a}
+  .hide{display:none}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div class="row">
+    <div>
+      <h1>🌀 Sky Dash — Sonsuz Koşu</h1>
+      <div class="meta">Zıpla ( <span class="kbd">Space</span> / <span class="kbd">↑</span> / dokun ), Çift Zıplama açık • Duraklat <span class="kbd">P</span></div>
+    </div>
+    <div class="hud">
+      <div class="chip">Skor: <span id="score">0</span></div>
+      <div class="chip">En Yüksek: <span id="hiscore">0</span></div>
+      <button id="pauseBtn" class="btn">Duraklat (P)</button>
+      <button id="restartBtn" class="btn">Yeniden Başlat</button>
+    </div>
+  </div>
+  <canvas id="game" width="900" height="420"></canvas>
+</div>
+
+<!-- Başlangıç: Karakter seçimi -->
+<div id="startOverlay" class="overlay">
+  <div class="panel">
+    <h2>Karakterini Seç ✨</h2>
+    <div class="grid" id="charGrid">
+      <!-- 3 karakter kartı (stil renkleri ve zıplama çizgisi farklı) -->
+      <div class="card selected" data-id="runner">
+        <svg width="100" height="70">
+          <rect x="10" y="20" width="28" height="28" rx="6" fill="#6ee7ff"/>
+          <circle cx="40" cy="20" r="3" fill="#6ee7ff"/>
+          <rect x="50" y="22" width="28" height="28" rx="6" fill="#8fd3ff"/>
+        </svg>
+        <div>Runner (hafif)</div>
+      </div>
+      <div class="card" data-id="blazer">
+        <svg width="100" height="70">
+          <rect x="12" y="18" width="30" height="30" rx="8" fill="#ff9f40"/>
+          <rect x="50" y="24" width="34" height="26" rx="6" fill="#ffc071"/>
+        </svg>
+        <div>Blazer (denge)</div>
+      </div>
+      <div class="card" data-id="tank">
+        <svg width="100" height="70">
+          <rect x="10" y="18" width="34" height="34" rx="10" fill="#a7ff83"/>
+          <rect x="50" y="26" width="36" height="24" rx="8" fill="#7ee690"/>
+        </svg>
+        <div>Tank (ağır, güçlü)</div>
+      </div>
+    </div>
+    <p class="hint" style="margin-top:10px">
+      <b>Kontroller:</b> Zıpla: <span class="kbd">Space</span> / <span class="kbd">↑</span> (dokunmatik ekranda dokun). Çift zıplayabilirsin.<br/>
+      <b>Amaç:</b> Engellere çarpmadan olabildiğince uzun süre koş ve <b>coin</b> topla. Puan zamanla artar, coin +50 puan verir.
+    </p>
+    <div class="center">
+      <button id="startBtn" class="btn ok">Başla</button>
+    </div>
+  </div>
+</div>
+
+<!-- Game Over -->
+<div id="gameOver" class="overlay hide">
+  <div class="panel">
+    <h2>💥 Oyun Bitti!</h2>
+    <p class="hint">Skorun: <b><span id="finalScore">0</span></b> — En yüksek: <b><span id="finalHi">0</span></b></p>
+    <div class="center">
+      <button id="againBtn" class="btn">Tekrar Oyna</button>
+      <button id="closeBtn" class="btn danger">Kapat</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ==========================
+   SKY DASH — Endless Runner
+   (c) Hilal için tek dosya
+   ========================== */
+
+// ---------- Helpers ----------
+const rand = (a,b)=>Math.random()*(b-a)+a;
+const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
+const lerp=(a,b,t)=>a+(b-a)*t;
+
+// ---------- DOM refs ----------
+const cv = document.getElementById('game');
+const cx = cv.getContext('2d');
+const scoreEl = document.getElementById('score');
+const hiEl = document.getElementById('hiscore');
+const startOverlay = document.getElementById('startOverlay');
+const gameOverEl = document.getElementById('gameOver');
+const finalScoreEl = document.getElementById('finalScore');
+const finalHiEl = document.getElementById('finalHi');
+const pauseBtn = document.getElementById('pauseBtn');
+const restartBtn = document.getElementById('restartBtn');
+const againBtn = document.getElementById('againBtn');
+const closeBtn = document.getElementById('closeBtn');
+const startBtn = document.getElementById('startBtn');
+const charGrid = document.getElementById('charGrid');
+
+// ---------- Game State ----------
+const W=cv.width,H=cv.height;
+let running=false, paused=false, gameOver=false;
+let gravity=0.7, jumpVel=-12, doubleJumpVel=-10;
+let speed=6;           // zemin & engel akış hızı
+let speedAcc=0.0008;   // zamanla hız artışı
+let scroll=0;
+let score=0, hi = +localStorage.getItem('skydash_hi')||0;
+hiEl.textContent = hi;
+let allowDouble=false;
+let character='runner'; // seçilen karakter
+let t=0;
+
+// karaktere göre fizik
+function applyCharacter(ch){
+  if(ch==='runner'){ gravity=0.72; jumpVel=-12.2; doubleJumpVel=-10.2; }
+  if(ch==='blazer'){ gravity=0.76; jumpVel=-12.0; doubleJumpVel=-10.0; }
+  if(ch==='tank'){   gravity=0.85; jumpVel=-11.5; doubleJumpVel=-9.6; speed=5.6; }
+}
+
+const player={
+  x:120, y:H-80, w:34, h:34, vy:0, onGround:false, trail:[], color1:'#6ee7ff', color2:'#8fd3ff'
+};
+
+const obstacles=[]; // {x,y,w,h,type}
+const coins=[];     // {x,y,r}
+let spawnTimer=0, coinTimer=0;
+
+// ---------- Input ----------
+const keys={};
+window.addEventListener('keydown',e=>{
+  keys[e.key]=true;
+  if(e.key===' '||e.key==='ArrowUp'){ jump(); e.preventDefault(); }
+  if(e.key.toLowerCase()==='p'){ togglePause(); }
+});
+window.addEventListener('keyup',e=>keys[e.key]=false);
+
+// touch → jump
+cv.addEventListener('pointerdown', jump);
+
+// ---------- Character select ----------
+charGrid.addEventListener('click', e=>{
+  const card = e.target.closest('.card');
+  if(!card) return;
+  [...charGrid.children].forEach(c=>c.classList.remove('selected'));
+  card.classList.add('selected');
+  character = card.dataset.id;
+});
+startBtn.addEventListener('click', ()=>{
+  startOverlay.classList.add('hide');
+  startGame();
+});
+
+// ---------- Pause / Restart ----------
+pauseBtn.onclick = togglePause;
+restartBtn.onclick = ()=> resetGame(true);
+againBtn.onclick = ()=> { hideGameOver(); resetGame(true); };
+closeBtn.onclick = ()=> hideGameOver();
+
+function togglePause(){
+  if(!running || gameOver) return;
+  paused=!paused;
+  pauseBtn.textContent = paused ? 'Devam (P)' : 'Duraklat (P)';
+}
+
+// ---------- Game core ----------
+function startGame(){
+  applyCharacter(character);
+  // görsellik için karakter renkleri
+  if(character==='runner'){ player.color1='#6ee7ff'; player.color2='#8fd3ff'; }
+  if(character==='blazer'){ player.color1='#ff9f40'; player.color2='#ffc071'; }
+  if(character==='tank'){   player.color1='#a7ff83'; player.color2='#7ee690'; }
+  resetGame(false);
+  running=true; paused=false; gameLoop();
+}
+
+function resetGame(hard=true){
+  score=0; speed=character==='tank'?5.6:6; t=0; scroll=0;
+  player.y=H-80; player.vy=0; player.onGround=false; allowDouble=false;
+  obstacles.length=0; coins.length=0; spawnTimer=0; coinTimer=0;
+  if(hard){ gameOver=false; startOverlay.classList.add('hide'); }
+  pauseBtn.textContent='Duraklat (P)';
+}
+
+function gameLoop(){
+  if(!running) return;
+  requestAnimationFrame(gameLoop);
+  if(paused) { draw(true); return; }
+  update();
+  draw(false);
+}
+
+function update(){
+  t+=1; scroll+=speed; speed+=speedAcc; score+=0.25; // skor zamanla artar
+  scoreEl.textContent = Math.floor(score);
+
+  // oyuncu fizik
+  player.vy += gravity;
+  player.y += player.vy;
+  if(player.y >= H-80){
+    player.y = H-80;
+    player.vy = 0;
+    if(!player.onGround){ player.onGround=true; allowDouble=true; }
+  }
+
+  // trail (koşu izleri)
+  if(player.onGround && (t%4===0)){
+    player.trail.push({x:player.x-8, y:player.y+player.h-6, a:1});
+    if(player.trail.length>20) player.trail.shift();
+  }
+  player.trail.forEach(p=>p.a-=0.05);
+
+  // engel & coin spawn
+  spawnTimer-=speed;
+  coinTimer-=speed;
+
+  if(spawnTimer<=0){
+    const type = Math.random()<0.5?'box':'tall';
+    const w = type==='box'? 30:26;
+    const h = type==='box'? 30:54;
+    obstacles.push({x:W+20, y:H-46-h, w, h, type});
+    spawnTimer = rand(260, 440); // aralık
+  }
+  if(coinTimer<=0){
+    const y = H-140 - rand(-40,60);
+    coins.push({x:W+20, y, r:8});
+    coinTimer = rand(220, 360);
+  }
+
+  // hareket
+  obstacles.forEach(o=>o.x-=speed);
+  coins.forEach(c=>c.x-=speed);
+
+  // çarpışma (AABB vs circle)
+  for(const o of obstacles){
+    if(rectRect(player.x,player.y,player.w,player.h, o.x,o.y,o.w,o.h)){
+      endGame();
+      return;
+    }
+  }
+  for(let i=coins.length-1;i>=0;i--){
+    const c=coins[i];
+    if(circleRect(c.x,c.y,c.r, player.x,player.y,player.w,player.h)){
+      score+=50;
+      coins.splice(i,1);
+    }
+  }
+
+  // temizlik
+  while(obstacles.length && obstacles[0].x<-100) obstacles.shift();
+  while(coins.length && coins[0].x<-50) coins.shift();
+}
+
+function draw(pausedFrame){
+  cx.clearRect(0,0,W,H);
+
+  // arka plan bulut/dağ benzeri katmanlar (parallax)
+  drawParallax();
+
+  // yer çizgisi
+  cx.strokeStyle='rgba(255,255,255,.12)';
+  cx.lineWidth=2;
+  cx.beginPath();
+  cx.moveTo(0, H-40.5);
+  cx.lineTo(W, H-40.5);
+  cx.stroke();
+
+  // coinler
+  for(const c of coins){
+    cx.fillStyle = 'gold';
+    cx.beginPath();
+    cx.arc(c.x, c.y, c.r, 0, Math.PI*2);
+    cx.fill();
+    cx.strokeStyle='rgba(255,255,255,.25)';
+    cx.beginPath(); cx.arc(c.x, c.y, c.r*0.6, 0, Math.PI*2); cx.stroke();
+  }
+
+  // engeller
+  for(const o of obstacles){
+    cx.fillStyle = 'rgba(255,90,118,.9)';
+    roundRect(cx, o.x, o.y, o.w, o.h, 6);
+    cx.fill();
+  }
+
+  // player trail
+  for(const p of player.trail){
+    cx.globalAlpha= clamp(p.a,0,1);
+    cx.fillStyle = 'rgba(255,255,255,.25)';
+    cx.fillRect(p.x, p.y, 12, 3);
+    cx.globalAlpha=1;
+  }
+
+  // player
+  const g = cx.createLinearGradient(player.x,player.y, player.x+player.w, player.y+player.h);
+  g.addColorStop(0, player.color1);
+  g.addColorStop(1, player.color2);
+  cx.fillStyle = g;
+  roundRect(cx, player.x, player.y, player.w, player.h, 8);
+  cx.fill();
+
+  // paused yazısı
+  if(pausedFrame){
+    cx.fillStyle='rgba(255,255,255,.8)';
+    cx.font='bold 26px system-ui';
+    cx.fillText('⏸ Duraklatıldı', W/2-80, H/2);
+  }
+}
+
+function drawParallax(){
+  // uzak yıldızlar
+  cx.fillStyle='rgba(255,255,255,.12)';
+  for(let i=0;i<40;i++){
+    const x = (i*80 - (scroll*0.2)%80);
+    const y = 40 + (i*37)%140;
+    cx.fillRect(x, y, 2, 2);
+  }
+  // orta katman dalgalar
+  cx.strokeStyle='rgba(110,231,255,.15)';
+  cx.beginPath();
+  for(let x=0;x<=W;x++){
+    const y = 160 + Math.sin((x+scroll*0.03)/35)*8;
+    if(x===0) cx.moveTo(x,y); else cx.lineTo(x,y);
+  }
+  cx.stroke();
+}
+
+// ---------- Physics utils ----------
+function rectRect(x1,y1,w1,h1, x2,y2,w2,h2){
+  return x1<x2+w2 && x1+w1>x2 && y1<y2+h2 && y1+h1>y2;
+}
+function circleRect(cx0,cy0,r, rx,ry,rw,rh){
+  const cxn = clamp(cx0, rx, rx+rw);
+  const cyn = clamp(cy0, ry, ry+rh);
+  const dx=cx0-cxn, dy=cy0-cyn;
+  return (dx*dx+dy*dy) <= r*r;
+}
+function roundRect(ctx,x,y,w,h,r){
+  ctx.beginPath();
+  ctx.moveTo(x+r,y);
+  ctx.arcTo(x+w,y,x+w,y+h,r);
+  ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r);
+  ctx.arcTo(x,y,x+w,y,r);
+  ctx.closePath();
+}
+
+// ---------- Actions ----------
+function jump(){
+  if(gameOver||paused||!running) return;
+  // zıpla / çift zıpla
+  if(player.onGround){
+    player.vy = jumpVel; player.onGround=false; allowDouble=true;
+  }else if(allowDouble){
+    player.vy = doubleJumpVel; allowDouble=false;
+  }
+}
+function endGame(){
+  gameOver=true; running=true; paused=false;
+  const s = Math.floor(score);
+  if(s>hi){ hi=s; localStorage.setItem('skydash_hi', hi); }
+  finalScoreEl.textContent = s;
+  finalHiEl.textContent = hi;
+  document.getElementById('hiscore').textContent = hi;
+  showGameOver();
+}
+function showGameOver(){ gameOverEl.classList.remove('hide'); }
+function hideGameOver(){ gameOverEl.classList.add('hide'); }
+
+// ---------- Init ----------
+(function init(){
+  // başta overlay açık (karakter seçimi)
+  startOverlay.classList.remove('hide');
+})();
+</script>
+</body>
+</html>
